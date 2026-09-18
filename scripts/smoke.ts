@@ -72,6 +72,14 @@ assert(sh.isPathClear(cab.id), 'cabin on deep free')
 assert(sh.tryExit(sk.id).ok && sh.tryExit(cab.id).ok, 'shallow level clear')
 console.log('L17 shallow OK')
 
+const sh2 = new BoardState()
+sh2.loadLevel(getLevel(18))
+const cab2 = [...sh2.boats.values()].find((x) => x.type === 'B_cabin')!
+const sk2 = [...sh2.boats.values()].find((x) => x.type === 'A_skiff' && x.facing === 'right')!
+assert(!sh2.isPathClear(cab2.id), 'cabin jammed by shallow')
+assert(sh2.isPathClear(sk2.id), 'skiff free on deep')
+console.log('L18 shallow block OK')
+
 const u = new BoardState()
 u.loadLevel(getLevel(1))
 const freeId = u.freeBoatIds()[0]
