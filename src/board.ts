@@ -22,7 +22,7 @@ export interface ExitRecord {
   type: BoatType
   facing: Facing
   hidden: boolean
-  revealedBoats: number[]
+  revealedBoats: { id: number; hidden: boolean }[]
   pilotLinkId: number
   gateId: number
   requiresPilot: boolean
@@ -32,8 +32,11 @@ export interface ExitRecord {
 export interface RevealRecord {
   kind: 'reveal'
   boatId: number
-  chargeSpent: number
-  consumedPickup: Cell | null
+  /** State captured before spending the lighthouse cone. */
+  hidden: boolean
+  lighthouseCharges: number
+  conePickups: Cell[]
+  coneArmed: boolean
 }
 
 export type MoveRecord = ExitRecord | RevealRecord
@@ -237,14 +240,14 @@ export class BoardState {
     return true
   }
 
-  private revealAdjacent(exited: Cell[]): number[] {
+  private revealAdjacent(exited: Cell[]): { id: number; hidden: boolean }[] {
     const dirs = [
       { c: 0, r: -1 },
       { c: 0, r: 1 },
       { c: -1, r: 0 },
       { c: 1, r: 0 },
     ]
-    const revealed: number[] = []
+    const revealed: { id: number; hidden: boolean }[] = []
     for (const cell of exited) {
       for (const d of dirs) {
         const ac = cell.c + d.c
@@ -252,9 +255,9 @@ export class BoardState {
         const id = this.getCell(ac, ar)
         if (id === EMPTY) continue
         const b = this.boats.get(id)
-        if (b && b.hidden && !revealed.includes(id)) {
+        if (b && b.hidden && !revealed.some((x) => x.id === id)) {
+          revealed.push({ id, hidden: b.hidden })
           b.hidden = false
-          revealed.push(id)
         }
       }
     }
@@ -286,9 +289,14 @@ export class BoardState {
     if (this.lighthouseCharges <= 0) return { ok: false, reason: 'no-charge' }
     if (!this.coneArmed) return { ok: false, reason: 'not-armed' }
 
-    let consumedPickup: Cell | null = null
+    const snapshot = {
+      hidden: boat.hidden,
+      lighthouseCharges: this.lighthouseCharges,
+      conePickups: this.conePickups.map((p) => ({ ...p })),
+      coneArmed: this.coneArmed,
+    }
     if (this.conePickups.length > 0) {
-      consumedPickup = this.conePickups.shift()!
+      this.conePickups.shift()
     }
     this.lighthouseCharges -= 1
     boat.hidden = false
@@ -297,8 +305,7 @@ export class BoardState {
     this.history.push({
       kind: 'reveal',
       boatId,
-      chargeSpent: 1,
-      consumedPickup,
+      ...snapshot,
     })
     return { ok: true }
   }
@@ -346,18 +353,16 @@ export class BoardState {
 
     if (rec.kind === 'reveal') {
       const b = this.boats.get(rec.boatId)
-      if (b) b.hidden = true
-      this.lighthouseCharges += rec.chargeSpent
-      if (rec.consumedPickup) {
-        this.conePickups.unshift({ ...rec.consumedPickup })
-      }
-      this.coneArmed = false
+      if (b) b.hidden = rec.hidden
+      this.lighthouseCharges = rec.lighthouseCharges
+      this.conePickups = rec.conePickups.map((p) => ({ ...p }))
+      this.coneArmed = rec.coneArmed
       return true
     }
 
-    for (const id of rec.revealedBoats) {
-      const b = this.boats.get(id)
-      if (b) b.hidden = true
+    for (const revealed of rec.revealedBoats) {
+      const b = this.boats.get(revealed.id)
+      if (b) b.hidden = revealed.hidden
     }
 
     if (rec.wasPilotSkiff) {
