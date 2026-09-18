@@ -257,14 +257,14 @@ const L17: LevelDef = {
   ],
 }
 
-/** L18: shallow blocks cabin if on same row */
+/** L18: cabin jammed by shallow on exit ray; skiff on deep row free */
 const L18: LevelDef = {
   id: 18,
   name: 'SHALLOW 2',
   shallow: [o(3, 2), o(4, 2), o(5, 2)],
   boats: [
-    boat('A_skiff', 'right', 0, 2),
-    boat('B_cabin', 'right', 0, 4),
+    boat('B_cabin', 'right', 0, 2),
+    boat('A_skiff', 'right', 0, 4),
     boat('A_skiff', 'down', 5, 0),
   ],
 }
