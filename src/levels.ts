@@ -30,14 +30,14 @@ function boatCells(
   return { type, facing, cells, ...extra }
 }
 
-/** Art-lock L1 (ASSET_SPECS mock): A free, B at edge (path-free), C jam behind D, D free.
- *  D truncated to cols 3–5 so it does not overlap C's (2,4). Solve: A→B→D→C (A/B anytime before/with D). */
+/** L1: A free at east (cols 4–5), B jam west of A (cols 1–3), C jam behind D, D free.
+ *  Matches ASSET_SPECS free/jam intent (A free, B jam). Solve: A→B→D→C. */
 const L1: LevelDef = {
   id: 1,
   name: '1',
   boats: [
-    boat('A_skiff', 'right', 0, 0),
-    boat('B_cabin', 'right', 3, 0),
+    boat('A_skiff', 'right', 4, 0),
+    boat('B_cabin', 'right', 1, 0),
     boat('C_ferry', 'right', 0, 3),
     boatCells('D_tug', 'right', [
       o(3, 4),
@@ -204,14 +204,15 @@ const L13: LevelDef = {
   ],
 }
 
-/** L14: fog chain reveal */
+/** L14: lighthouse cone teach — fogged boat non-adjacent; spend cone to reveal */
 const L14: LevelDef = {
   id: 14,
   name: 'FOG 2',
+  lighthouseCharges: 1,
+  conePickups: [o(0, 5)],
   boats: [
-    boat('A_skiff', 'right', 2, 1),
-    boat('A_skiff', 'right', 3, 2, { hidden: true }),
-    boat('A_skiff', 'right', 4, 3, { hidden: true }),
+    boat('A_skiff', 'right', 0, 1),
+    boat('A_skiff', 'right', 4, 4, { hidden: true }),
   ],
 }
 

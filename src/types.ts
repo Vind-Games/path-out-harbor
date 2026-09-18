@@ -24,7 +24,10 @@ export interface LevelDef {
   name: string
   boats: BoatDef[]
   shallow?: Cell[]
+  /** Starting lighthouse cone charges (spend to reveal fog). */
   lighthouseCharges?: number
+  /** Board cells with cone pickup sprites (tap to arm spend). */
+  conePickups?: Cell[]
 }
 
 export interface BoatRuntime {
@@ -56,6 +59,11 @@ export const FOOTPRINT: Record<BoatType, { w: number; h: number }> = {
 
 export const UNDO_RECT = { x0: 56, y0: 1680, x1: 196, y1: 1820 }
 export const NEXT_RECT = { x0: 400, y0: 1680, x1: 680, y1: 1820 }
+/** HUD cone charges (top-right, below baked title). */
+export const CHARGE_HUD = { x0: 860, y0: 200, x1: 1040, y1: 300 }
+/** Level label band — below yellow PATH OUT banner (~y=105–140). */
+export const LEVEL_LABEL_Y = 220
+export const SOFT_JAM_Y = 275
 
 export function cellOrigin(c: number, r: number): { x: number; y: number } {
   return {

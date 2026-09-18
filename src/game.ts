@@ -2,7 +2,14 @@ import { loadAssets, type GameAssets } from './assets'
 import { BoardState } from './board'
 import { getLevel, levelCount } from './levels'
 import { Renderer, clientToDesign, computeView, boatBlitRect } from './renderer'
-import { DESIGN_H, DESIGN_W, NEXT_RECT, UNDO_RECT, type BoatRuntime } from './types'
+import {
+  CHARGE_HUD,
+  DESIGN_H,
+  DESIGN_W,
+  NEXT_RECT,
+  UNDO_RECT,
+  type BoatRuntime,
+} from './types'
 import { boatKey } from './assets'
 
 export class Game {
@@ -67,8 +74,9 @@ export class Game {
 
   private boatRect = (b: BoatRuntime) => {
     const free = this.board.isPathClear(b.id)
-    const img = this.assets.boats[boatKey(b.type, free || b.hidden, b.facing)]
-      ?? this.assets.boats[boatKey(b.type, true, b.facing)]
+    const img =
+      this.assets.boats[boatKey(b.type, free || b.hidden, b.facing)] ??
+      this.assets.boats[boatKey(b.type, true, b.facing)]
     return boatBlitRect(b, img)
   }
 
@@ -80,7 +88,6 @@ export class Game {
       this.handleTap(x, y)
     }
     this.canvas.addEventListener('pointerdown', onPointer, { passive: false })
-    // Safari older touch fallback
     this.canvas.addEventListener(
       'touchstart',
       (e) => {
@@ -112,7 +119,6 @@ export class Game {
         this.advance()
         return
       }
-      // Also accept NEXT_RECT
       if (this.inRect(x, y, NEXT_RECT)) {
         this.advance()
         return
@@ -127,8 +133,44 @@ export class Game {
 
     if (this.showNext) return
 
+    // Arm cone from HUD charges
+    if (
+      this.board.lighthouseCharges > 0 &&
+      this.inRect(x, y, CHARGE_HUD)
+    ) {
+      this.board.armConeFromHud()
+      return
+    }
+
+    // Arm cone from board pickup
+    const pickup = this.board.conePickupAtDesignPoint(x, y)
+    if (pickup) {
+      this.board.armConeAt(pickup.c, pickup.r)
+      return
+    }
+
     const id = this.board.boatAtDesignPoint(x, y, this.boatRect)
-    if (id == null) return
+    if (id == null) {
+      // Tap empty while armed → disarm
+      if (this.board.coneArmed) this.board.disarmCone()
+      return
+    }
+
+    const boat = this.board.boats.get(id)!
+
+    // Fogged boat: cone spend if armed, else soft pulse
+    if (boat.hidden) {
+      if (this.board.coneArmed && this.board.lighthouseCharges > 0) {
+        const res = this.board.revealWithCone(id)
+        if (!res.ok) this.renderer.pulse(id)
+        return
+      }
+      this.renderer.pulse(id)
+      return
+    }
+
+    // Visible boat — cancel arm if any, then normal exit
+    if (this.board.coneArmed) this.board.disarmCone()
 
     if (!this.board.canTap(id)) {
       this.renderer.pulse(id)
@@ -140,7 +182,6 @@ export class Game {
       return
     }
 
-    const boat = this.board.boats.get(id)!
     const snapshot: BoatRuntime = {
       ...boat,
       cells: boat.cells.map((c) => ({ ...c })),

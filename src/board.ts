@@ -6,13 +6,17 @@ import {
   type Facing,
   type LevelDef,
   GRID,
+  TW,
+  TH,
+  cellOrigin,
   facingDelta,
   resolveCells,
 } from './types'
 
 const EMPTY = -1
 
-export interface MoveRecord {
+export interface ExitRecord {
+  kind: 'exit'
   boatId: number
   fromCells: Cell[]
   type: BoatType
@@ -25,6 +29,15 @@ export interface MoveRecord {
   wasPilotSkiff: boolean
 }
 
+export interface RevealRecord {
+  kind: 'reveal'
+  boatId: number
+  chargeSpent: number
+  consumedPickup: Cell | null
+}
+
+export type MoveRecord = ExitRecord | RevealRecord
+
 export class BoardState {
   width = GRID
   height = GRID
@@ -36,6 +49,9 @@ export class BoardState {
     number,
     { skiffId: number; shipId: number; gateId: number; skiffExited: boolean }
   >()
+  lighthouseCharges = 0
+  conePickups: Cell[] = []
+  coneArmed = false
   private nextId = 0
   cleared = false
 
@@ -80,6 +96,9 @@ export class BoardState {
     this.pilotLinks.clear()
     this.nextId = 0
     this.cleared = false
+    this.coneArmed = false
+    this.lighthouseCharges = level.lighthouseCharges ?? 0
+    this.conePickups = (level.conePickups ?? []).map((p) => ({ ...p }))
 
     for (const s of level.shallow ?? []) {
       this.shallow.add(this.key(s.c, s.r))
@@ -204,8 +223,18 @@ export class BoardState {
     return out
   }
 
+  hasHiddenBoats(): boolean {
+    for (const b of this.boats.values()) {
+      if (b.hidden) return true
+    }
+    return false
+  }
+
   isSoftJam(): boolean {
-    return this.boats.size > 0 && this.freeBoatIds().length === 0
+    if (this.boats.size === 0) return false
+    if (this.freeBoatIds().length > 0) return false
+    if (this.lighthouseCharges > 0 && this.hasHiddenBoats()) return false
+    return true
   }
 
   private revealAdjacent(exited: Cell[]): number[] {
@@ -232,6 +261,48 @@ export class BoardState {
     return revealed
   }
 
+  armConeFromHud(): boolean {
+    if (this.lighthouseCharges <= 0) return false
+    this.coneArmed = true
+    return true
+  }
+
+  armConeAt(c: number, r: number): boolean {
+    if (this.lighthouseCharges <= 0) return false
+    const idx = this.conePickups.findIndex((p) => p.c === c && p.r === r)
+    if (idx < 0) return false
+    this.coneArmed = true
+    return true
+  }
+
+  disarmCone() {
+    this.coneArmed = false
+  }
+
+  revealWithCone(boatId: number): { ok: boolean; reason?: string } {
+    const boat = this.boats.get(boatId)
+    if (!boat) return { ok: false, reason: 'invalid' }
+    if (!boat.hidden) return { ok: false, reason: 'not-hidden' }
+    if (this.lighthouseCharges <= 0) return { ok: false, reason: 'no-charge' }
+    if (!this.coneArmed) return { ok: false, reason: 'not-armed' }
+
+    let consumedPickup: Cell | null = null
+    if (this.conePickups.length > 0) {
+      consumedPickup = this.conePickups.shift()!
+    }
+    this.lighthouseCharges -= 1
+    boat.hidden = false
+    this.coneArmed = false
+
+    this.history.push({
+      kind: 'reveal',
+      boatId,
+      chargeSpent: 1,
+      consumedPickup,
+    })
+    return { ok: true }
+  }
+
   tryExit(boatId: number): { ok: boolean; reason?: string } {
     const boat = this.boats.get(boatId)
     if (!boat) return { ok: false, reason: 'invalid' }
@@ -251,6 +322,7 @@ export class BoardState {
     const revealed = this.revealAdjacent(fromCells)
 
     this.history.push({
+      kind: 'exit',
       boatId,
       fromCells,
       type: boat.type,
@@ -271,6 +343,17 @@ export class BoardState {
   undo(): boolean {
     const rec = this.history.pop()
     if (!rec) return false
+
+    if (rec.kind === 'reveal') {
+      const b = this.boats.get(rec.boatId)
+      if (b) b.hidden = true
+      this.lighthouseCharges += rec.chargeSpent
+      if (rec.consumedPickup) {
+        this.conePickups.unshift({ ...rec.consumedPickup })
+      }
+      this.coneArmed = false
+      return true
+    }
 
     for (const id of rec.revealedBoats) {
       const b = this.boats.get(id)
@@ -295,6 +378,7 @@ export class BoardState {
     for (const cell of boat.cells) this.setCell(cell.c, cell.r, boat.id)
     this.boats.set(boat.id, boat)
     this.cleared = false
+    this.coneArmed = false
     return true
   }
 
@@ -302,10 +386,22 @@ export class BoardState {
     return this.history.length > 0
   }
 
-  /** Hit-test: pick topmost boat whose footprint AABB (design space, iso) contains point. */
-  boatAtDesignPoint(x: number, y: number, boatScreenRect: (b: BoatRuntime) => { x: number; y: number; w: number; h: number }): number | null {
+  conePickupAtDesignPoint(x: number, y: number): Cell | null {
+    for (const p of this.conePickups) {
+      const o = cellOrigin(p.c, p.r)
+      if (x >= o.x - 20 && x <= o.x + TW + 20 && y >= o.y - 100 && y <= o.y + TH + 20) {
+        return p
+      }
+    }
+    return null
+  }
+
+  boatAtDesignPoint(
+    x: number,
+    y: number,
+    boatScreenRect: (b: BoatRuntime) => { x: number; y: number; w: number; h: number },
+  ): number | null {
     const ids = [...this.boats.keys()].sort((a, b) => {
-      // Prefer higher row+col (drawn later / in front)
       const ba = this.boats.get(a)!
       const bb = this.boats.get(b)!
       const sa = Math.max(...ba.cells.map((c) => c.c + c.r))
@@ -314,6 +410,15 @@ export class BoardState {
     })
     for (const id of ids) {
       const boat = this.boats.get(id)!
+      if (boat.hidden) {
+        for (const cell of boat.cells) {
+          const o = cellOrigin(cell.c, cell.r)
+          if (x >= o.x && x <= o.x + TW && y >= o.y && y <= o.y + TH) {
+            return id
+          }
+        }
+        continue
+      }
       const rect = boatScreenRect(boat)
       if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
         return id

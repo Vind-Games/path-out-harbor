@@ -3,12 +3,16 @@ import { boatKey } from './assets'
 import type { BoardState } from './board'
 import type { BoatRuntime } from './types'
 import {
+  CHARGE_HUD,
   DESIGN_H,
   DESIGN_W,
+  LEVEL_LABEL_Y,
   NEXT_RECT,
+  SOFT_JAM_Y,
   TW,
   TH,
   UNDO_RECT,
+  cellCenter,
   cellOrigin,
 } from './types'
 
@@ -43,7 +47,6 @@ export function clientToDesign(
   const rect = canvas.getBoundingClientRect()
   const cssX = clientX - rect.left
   const cssY = clientY - rect.top
-  // Canvas backing store may differ from CSS size
   const sx = canvas.width / rect.width
   const sy = canvas.height / rect.height
   const canvasX = cssX * sx
@@ -102,7 +105,12 @@ export class Renderer {
   }
 
   startExit(boat: BoatRuntime, free: boolean) {
-    this.exitAnim = { boat: { ...boat, cells: boat.cells.map((c) => ({ ...c })) }, free, t0: performance.now(), dur: 280 }
+    this.exitAnim = {
+      boat: { ...boat, cells: boat.cells.map((c) => ({ ...c })) },
+      free,
+      t0: performance.now(),
+      dur: 280,
+    }
   }
 
   get animating() {
@@ -123,7 +131,7 @@ export class Renderer {
 
     ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY)
 
-    // Full-scene board — no invented chrome
+    // Full-scene board — no invented chrome / no second PATH OUT title
     ctx.drawImage(assets.board, 0, 0, DESIGN_W, DESIGN_H)
 
     // Shallow hatches
@@ -131,6 +139,21 @@ export class Renderer {
       const [cs, rs] = key.split(',').map(Number)
       const o = cellOrigin(cs, rs)
       ctx.drawImage(assets.ui.shallow, o.x, o.y, TW, TH)
+    }
+
+    // Cone pickups on board
+    for (const p of board.conePickups) {
+      const ctr = cellCenter(p.c, p.r)
+      const cone = assets.ui.cone
+      const cw = cone.width * 0.55
+      const ch = cone.height * 0.55
+      ctx.save()
+      if (board.coneArmed) {
+        ctx.shadowColor = 'rgba(255, 220, 80, 0.9)'
+        ctx.shadowBlur = 18
+      }
+      ctx.drawImage(cone, ctr.x - cw / 2, ctr.y - ch * 0.75, cw, ch)
+      ctx.restore()
     }
 
     // Boats sorted back-to-front (low c+r first)
@@ -155,11 +178,53 @@ export class Renderer {
       }
 
       if (boat.hidden) {
-        // Fog: draw fog overlays on cells; no boat tap target visually as boat
+        // Fog: larger/more opaque overlay + light mist + big white ?
+        let minX = Infinity
+        let minY = Infinity
+        let maxX = -Infinity
+        let maxY = -Infinity
         for (const cell of boat.cells) {
           const o = cellOrigin(cell.c, cell.r)
-          ctx.drawImage(assets.ui.fog, o.x, o.y, TW, TH)
+          minX = Math.min(minX, o.x)
+          minY = Math.min(minY, o.y)
+          maxX = Math.max(maxX, o.x + TW)
+          maxY = Math.max(maxY, o.y + TH)
+
+          // Light mist tint (glance-readable on iPhone)
+          ctx.fillStyle = 'rgba(190, 210, 230, 0.28)'
+          ctx.beginPath()
+          const cx = o.x + TW / 2
+          const cy = o.y + TH / 2
+          ctx.moveTo(cx, o.y - 4)
+          ctx.lineTo(o.x + TW + 4, cy)
+          ctx.lineTo(cx, o.y + TH + 4)
+          ctx.lineTo(o.x - 4, cy)
+          ctx.closePath()
+          ctx.fill()
+
+          // Fog overlay scaled up + more opaque
+          const padX = TW * 0.18
+          const padY = TH * 0.22
+          ctx.globalAlpha = 0.92
+          ctx.drawImage(
+            assets.ui.fog,
+            o.x - padX,
+            o.y - padY,
+            TW + padX * 2,
+            TH + padY * 2,
+          )
+          ctx.globalAlpha = 1
         }
+        // Large white ? centered on footprint
+        const fcx = (minX + maxX) / 2
+        const fcy = (minY + maxY) / 2
+        ctx.font = 'bold 56px system-ui, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = 'rgba(0,0,0,0.45)'
+        ctx.fillText('?', fcx + 2, fcy + 3)
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText('?', fcx, fcy)
       } else {
         ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h)
         if (!free) {
@@ -195,7 +260,7 @@ export class Renderer {
       if (t >= 1) this.exitAnim = null
     }
 
-    // Undo (board art may already paint a button; we overlay interactive sprite)
+    // Undo
     const undo = assets.ui.undo
     const uw = UNDO_RECT.x1 - UNDO_RECT.x0
     const uh = UNDO_RECT.y1 - UNDO_RECT.y0
@@ -215,16 +280,80 @@ export class Renderer {
       ctx.drawImage(next, nx, ny)
     }
 
-    // Level label (minimal, top)
-    ctx.fillStyle = 'rgba(255,255,255,0.85)'
-    ctx.font = 'bold 36px system-ui, sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(opts.levelLabel, DESIGN_W / 2, 120)
+    // Level label — below baked PATH OUT banner, dark pill (never overlaps title)
+    {
+      ctx.font = 'bold 34px system-ui, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const label = opts.levelLabel
+      const tw = ctx.measureText(label).width
+      const padX = 28
+      const padY = 14
+      const px = DESIGN_W / 2
+      const py = LEVEL_LABEL_Y
+      ctx.fillStyle = 'rgba(8, 18, 36, 0.72)'
+      roundRect(ctx, px - tw / 2 - padX, py - 20 - padY / 2, tw + padX * 2, 40 + padY, 16)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255,255,255,0.92)'
+      ctx.fillText(label, px, py)
+    }
 
+    // Soft-jam banner — further below title / level label
     if (opts.softJam && !opts.showNext) {
-      ctx.fillStyle = 'rgba(255, 200, 80, 0.9)'
       ctx.font = '28px system-ui, sans-serif'
-      ctx.fillText('Jam — undo', DESIGN_W / 2, 170)
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const msg = 'Jam — undo'
+      const tw = ctx.measureText(msg).width
+      ctx.fillStyle = 'rgba(40, 24, 8, 0.75)'
+      roundRect(ctx, DESIGN_W / 2 - tw / 2 - 24, SOFT_JAM_Y - 22, tw + 48, 44, 14)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255, 200, 80, 0.95)'
+      ctx.fillText(msg, DESIGN_W / 2, SOFT_JAM_Y)
+    }
+
+    // HUD lighthouse charges (top-right)
+    if (board.lighthouseCharges > 0 || board.conePickups.length > 0) {
+      const cone = assets.ui.cone
+      const hx = CHARGE_HUD.x0
+      const hy = CHARGE_HUD.y0
+      ctx.fillStyle = board.coneArmed
+        ? 'rgba(255, 210, 60, 0.35)'
+        : 'rgba(8, 18, 36, 0.72)'
+      roundRect(ctx, hx, hy, CHARGE_HUD.x1 - hx, CHARGE_HUD.y1 - hy, 14)
+      ctx.fill()
+      if (board.coneArmed) {
+        ctx.strokeStyle = 'rgba(255, 220, 80, 0.95)'
+        ctx.lineWidth = 3
+        roundRect(ctx, hx, hy, CHARGE_HUD.x1 - hx, CHARGE_HUD.y1 - hy, 14)
+        ctx.stroke()
+      }
+      const iw = 36
+      const ih = (cone.height / cone.width) * iw
+      ctx.drawImage(cone, hx + 14, hy + (CHARGE_HUD.y1 - hy - ih) / 2, iw, ih)
+      ctx.fillStyle = '#fff'
+      ctx.font = 'bold 36px system-ui, sans-serif'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(`×${board.lighthouseCharges}`, hx + 58, (hy + CHARGE_HUD.y1) / 2)
     }
   }
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  const rr = Math.min(r, w / 2, h / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + rr, y)
+  ctx.arcTo(x + w, y, x + w, y + h, rr)
+  ctx.arcTo(x + w, y + h, x, y + h, rr)
+  ctx.arcTo(x, y + h, x, y, rr)
+  ctx.arcTo(x, y, x + w, y, rr)
+  ctx.closePath()
 }
