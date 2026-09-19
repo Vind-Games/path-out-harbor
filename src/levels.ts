@@ -30,17 +30,18 @@ function boatCells(
   return { type, facing, cells, ...extra }
 }
 
-/** L1 per ASSET_SPECS top-down table:
- *  A @0,0 right; B @3,0 right; C @0,3 right; D @2,4 right.
+/** L1 path-clear matches ASSET_SPECS free/jam labels:
+ *  A free @4,0 right (cols 4–5) — clear exit east off board.
+ *  B jam  @1,0 right (cols 1–3) — blocked by A.
+ *  C jam  @0,3 right; D free blit@2,4 — C behind D on path.
  *  D collision truncated (cols 3–5) so C's (2,4) fits; sprite still blits at col 2.
- *  Live path: B free, A jam behind B, D free, C jam behind D. Solve: B→A→D→C.
- *  (ASSET_SPECS "free/jam" column is mock art labels; gameplay uses path-clear.) */
+ *  Solve: A→B→D→C. */
 const L1: LevelDef = {
   id: 1,
   name: '1',
   boats: [
-    boat('A_skiff', 'right', 0, 0),
-    boat('B_cabin', 'right', 3, 0),
+    boat('A_skiff', 'right', 4, 0),
+    boat('B_cabin', 'right', 1, 0),
     boat('C_ferry', 'right', 0, 3),
     boatCells(
       'D_tug',

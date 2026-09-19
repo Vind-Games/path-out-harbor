@@ -28,8 +28,8 @@
 ## Level 1 (`mock_with_boats.png`)
 | Boat | State | Facing | Col | Row | Pixel | Size |
 |---|---|---|---|---|---|---|
-| A_skiff | free | right | 0 | 0 | (188,460) | 256×128 |
-| B_cabin | jam | right | 3 | 0 | (572,460) | 384×128 |
+| A_skiff | free | right | 4 | 0 | (700,460) | 256×128 |
+| B_cabin | jam | right | 1 | 0 | (316,460) | 384×128 |
 | C_ferry | jam | right | 0 | 3 | (188,844) | 384×256 |
 | D_tug | free | right | 2 | 4 | (444,972) | 512×256 |
 
