@@ -29,21 +29,23 @@ const a = boats.find((b) => b.type === 'A_skiff')!
 const bCabin = boats.find((b) => b.type === 'B_cabin')!
 const c = boats.find((b) => b.type === 'C_ferry')!
 const d = boats.find((b) => b.type === 'D_tug')!
-assert(a.cells[0].c === 4 && a.cells[0].r === 0, 'A at cols 4–5 row 0')
-assert(bCabin.cells[0].c === 1 && bCabin.cells[0].r === 0, 'B at cols 1–3 row 0')
-assert(board.isPathClear(a.id), 'A should be free (east)')
-assert(!board.isPathClear(bCabin.id), 'B should be jam (west of A)')
+assert(a.cells[0].c === 0 && a.cells[0].r === 0, 'A at cols 0–1 row 0')
+assert(bCabin.cells[0].c === 3 && bCabin.cells[0].r === 0, 'B at cols 3–5 row 0')
+assert(c.cells.some((x) => x.c === 0 && x.r === 3), 'C at 0,3')
+assert(d.blitOrigin.c === 2 && d.blitOrigin.r === 4, 'D blitOrigin 2,4')
+assert(!board.isPathClear(a.id), 'A jam (blocked by B)')
+assert(board.isPathClear(bCabin.id), 'B free (at east edge)')
 assert(board.isPathClear(d.id), 'D should be free')
 assert(!board.isPathClear(c.id), 'C should be jam')
 
-assert(board.tryExit(a.id).ok, 'exit A')
-assert(board.isPathClear(bCabin.id), 'B frees after A')
 assert(board.tryExit(bCabin.id).ok, 'exit B')
+assert(board.isPathClear(a.id), 'A frees after B')
+assert(board.tryExit(a.id).ok, 'exit A')
 assert(board.tryExit(d.id).ok, 'exit D')
 assert(board.isPathClear(c.id), 'C frees after D')
 assert(board.tryExit(c.id).ok, 'exit C')
 assert(board.cleared, 'board cleared')
-console.log('L1 solve A→B→D→C OK')
+console.log('L1 solve B→A→D→C OK')
 
 const fog = new BoardState()
 fog.loadLevel(getLevel(13))

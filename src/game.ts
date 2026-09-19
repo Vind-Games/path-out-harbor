@@ -185,6 +185,7 @@ export class Game {
     const snapshot: BoatRuntime = {
       ...boat,
       cells: boat.cells.map((c) => ({ ...c })),
+      blitOrigin: { ...boat.blitOrigin },
     }
     this.busy = true
     this.renderer.startExit(snapshot, true)

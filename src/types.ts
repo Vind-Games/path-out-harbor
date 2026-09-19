@@ -11,8 +11,10 @@ export interface BoatDef {
   facing: Facing
   /** Origin cell (min col, min row) — cells derived from footprint if omitted. */
   origin?: Cell
-  /** Explicit cells; preferred when footprint is truncated (e.g. D on L1). */
+  /** Explicit cells; preferred when footprint is truncated (e.g. C vs D on L1). */
   cells?: Cell[]
+  /** Sprite top-left cell when collision footprint is truncated. */
+  blitOrigin?: Cell
   hidden?: boolean
   pilotLinkId?: number
   gateId?: number
@@ -35,6 +37,8 @@ export interface BoatRuntime {
   type: BoatType
   facing: Facing
   cells: Cell[]
+  /** Design-space sprite anchor (cell). Defaults to min cell. */
+  blitOrigin: Cell
   hidden: boolean
   pilotLinkId: number
   gateId: number
@@ -44,10 +48,11 @@ export interface BoatRuntime {
 export const GRID = 6
 export const DESIGN_W = 1080
 export const DESIGN_H = 1920
-export const OX = 540
-export const OY = 500
-export const TW = 132
-export const TH = 76
+
+/** Ortho top-down grid (isometric OX/OY/TW/TH diamond math removed). */
+export const TILE = 128
+export const GRID_X = 188
+export const GRID_Y = 460
 
 /** Footprint W×H in cells when facing RIGHT. DOWN swaps. */
 export const FOOTPRINT: Record<BoatType, { w: number; h: number }> = {
@@ -61,20 +66,27 @@ export const UNDO_RECT = { x0: 56, y0: 1680, x1: 196, y1: 1820 }
 export const NEXT_RECT = { x0: 400, y0: 1680, x1: 680, y1: 1820 }
 /** HUD cone charges (top-right, below baked title). */
 export const CHARGE_HUD = { x0: 860, y0: 200, x1: 1040, y1: 300 }
-/** Level label band — below yellow PATH OUT banner (~y=105–140). */
+/** Level label band — below yellow PATH OUT banner. */
 export const LEVEL_LABEL_Y = 220
 export const SOFT_JAM_Y = 275
 
+/** Cell (c,r) top-left in design pixels. */
 export function cellOrigin(c: number, r: number): { x: number; y: number } {
   return {
-    x: OX + (c - r) * (TW / 2) - TW / 2,
-    y: OY + (c + r) * (TH / 2),
+    x: GRID_X + c * TILE,
+    y: GRID_Y + r * TILE,
   }
 }
 
 export function cellCenter(c: number, r: number): { x: number; y: number } {
   const o = cellOrigin(c, r)
-  return { x: o.x + TW / 2, y: o.y + TH / 2 }
+  return { x: o.x + TILE / 2, y: o.y + TILE / 2 }
+}
+
+/** Axis-aligned cell hit rect. */
+export function cellRect(c: number, r: number): { x: number; y: number; w: number; h: number } {
+  const o = cellOrigin(c, r)
+  return { x: o.x, y: o.y, w: TILE, h: TILE }
 }
 
 export function facingDelta(f: Facing): Cell {

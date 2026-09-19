@@ -30,23 +30,24 @@ function boatCells(
   return { type, facing, cells, ...extra }
 }
 
-/** L1: A free at east (cols 4–5), B jam west of A (cols 1–3), C jam behind D, D free.
- *  Matches ASSET_SPECS free/jam intent (A free, B jam). Solve: A→B→D→C. */
+/** L1 per ASSET_SPECS top-down table:
+ *  A @0,0 right; B @3,0 right; C @0,3 right; D @2,4 right.
+ *  D collision truncated (cols 3–5) so C's (2,4) fits; sprite still blits at col 2.
+ *  Live path: B free, A jam behind B, D free, C jam behind D. Solve: B→A→D→C.
+ *  (ASSET_SPECS "free/jam" column is mock art labels; gameplay uses path-clear.) */
 const L1: LevelDef = {
   id: 1,
   name: '1',
   boats: [
-    boat('A_skiff', 'right', 4, 0),
-    boat('B_cabin', 'right', 1, 0),
+    boat('A_skiff', 'right', 0, 0),
+    boat('B_cabin', 'right', 3, 0),
     boat('C_ferry', 'right', 0, 3),
-    boatCells('D_tug', 'right', [
-      o(3, 4),
-      o(4, 4),
-      o(5, 4),
-      o(3, 5),
-      o(4, 5),
-      o(5, 5),
-    ]),
+    boatCells(
+      'D_tug',
+      'right',
+      [o(3, 4), o(4, 4), o(5, 4), o(3, 5), o(4, 5), o(5, 5)],
+      { blitOrigin: o(2, 4) },
+    ),
   ],
 }
 

@@ -6,9 +6,7 @@ import {
   type Facing,
   type LevelDef,
   GRID,
-  TW,
-  TH,
-  cellOrigin,
+  cellRect,
   facingDelta,
   resolveCells,
 } from './types'
@@ -19,6 +17,7 @@ export interface ExitRecord {
   kind: 'exit'
   boatId: number
   fromCells: Cell[]
+  blitOrigin: Cell
   type: BoatType
   facing: Facing
   hidden: boolean
@@ -147,11 +146,18 @@ export class BoardState {
   addBoat(def: BoatDef): number {
     const cells = resolveCells(def)
     const id = this.nextId++
+    const minC = Math.min(...cells.map((x) => x.c))
+    const minR = Math.min(...cells.map((x) => x.r))
     const boat: BoatRuntime = {
       id,
       type: def.type,
       facing: def.facing,
       cells,
+      blitOrigin: def.blitOrigin
+        ? { ...def.blitOrigin }
+        : def.origin
+          ? { ...def.origin }
+          : { c: minC, r: minR },
       hidden: !!def.hidden,
       pilotLinkId: def.pilotLinkId ?? -1,
       gateId: def.gateId ?? -1,
@@ -332,6 +338,7 @@ export class BoardState {
       kind: 'exit',
       boatId,
       fromCells,
+      blitOrigin: { ...boat.blitOrigin },
       type: boat.type,
       facing: boat.facing,
       hidden: boat.hidden,
@@ -375,6 +382,7 @@ export class BoardState {
       type: rec.type,
       facing: rec.facing,
       cells: rec.fromCells.map((x) => ({ ...x })),
+      blitOrigin: { ...rec.blitOrigin },
       hidden: rec.hidden,
       pilotLinkId: rec.pilotLinkId,
       gateId: rec.gateId,
@@ -393,8 +401,14 @@ export class BoardState {
 
   conePickupAtDesignPoint(x: number, y: number): Cell | null {
     for (const p of this.conePickups) {
-      const o = cellOrigin(p.c, p.r)
-      if (x >= o.x - 20 && x <= o.x + TW + 20 && y >= o.y - 100 && y <= o.y + TH + 20) {
+      const rect = cellRect(p.c, p.r)
+      const pad = 12
+      if (
+        x >= rect.x - pad &&
+        x <= rect.x + rect.w + pad &&
+        y >= rect.y - pad &&
+        y <= rect.y + rect.h + pad
+      ) {
         return p
       }
     }
@@ -406,19 +420,20 @@ export class BoardState {
     y: number,
     boatScreenRect: (b: BoatRuntime) => { x: number; y: number; w: number; h: number },
   ): number | null {
+    // Front-most first: higher row then higher col (ortho paint order inverse)
     const ids = [...this.boats.keys()].sort((a, b) => {
       const ba = this.boats.get(a)!
       const bb = this.boats.get(b)!
-      const sa = Math.max(...ba.cells.map((c) => c.c + c.r))
-      const sb = Math.max(...bb.cells.map((c) => c.c + c.r))
+      const sa = Math.max(...ba.cells.map((c) => c.r * GRID + c.c))
+      const sb = Math.max(...bb.cells.map((c) => c.r * GRID + c.c))
       return sb - sa
     })
     for (const id of ids) {
       const boat = this.boats.get(id)!
       if (boat.hidden) {
         for (const cell of boat.cells) {
-          const o = cellOrigin(cell.c, cell.r)
-          if (x >= o.x && x <= o.x + TW && y >= o.y && y <= o.y + TH) {
+          const rect = cellRect(cell.c, cell.r)
+          if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
             return id
           }
         }

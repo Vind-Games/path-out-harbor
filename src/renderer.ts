@@ -9,8 +9,7 @@ import {
   LEVEL_LABEL_Y,
   NEXT_RECT,
   SOFT_JAM_Y,
-  TW,
-  TH,
+  TILE,
   UNDO_RECT,
   cellCenter,
   cellOrigin,
@@ -57,29 +56,20 @@ export function clientToDesign(
   }
 }
 
-/** Axis-aligned blit rect for a boat: center sprite on footprint AABB. */
+/**
+ * Ortho blit rect: top-left at min cell origin.
+ * Sprites are exact TILE multiples (ASSET_SPECS); prefer natural size.
+ */
 export function boatBlitRect(boat: BoatRuntime, img: HTMLImageElement): {
   x: number
   y: number
   w: number
   h: number
 } {
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const cell of boat.cells) {
-    const o = cellOrigin(cell.c, cell.r)
-    minX = Math.min(minX, o.x)
-    minY = Math.min(minY, o.y)
-    maxX = Math.max(maxX, o.x + TW)
-    maxY = Math.max(maxY, o.y + TH)
-  }
-  const cx = (minX + maxX) / 2
-  const cy = (minY + maxY) / 2
+  const o = cellOrigin(boat.blitOrigin.c, boat.blitOrigin.r)
   const w = img.naturalWidth || img.width
   const h = img.naturalHeight || img.height
-  return { x: cx - w / 2, y: cy - h / 2, w, h }
+  return { x: o.x, y: o.y, w, h }
 }
 
 export class Renderer {
@@ -131,14 +121,14 @@ export class Renderer {
 
     ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY)
 
-    // Full-scene board — no invented chrome / no second PATH OUT title
+    // Full-scene board — no invented chrome
     ctx.drawImage(assets.board, 0, 0, DESIGN_W, DESIGN_H)
 
-    // Shallow hatches
+    // Shallow hatches (ortho cell rects)
     for (const key of board.shallow) {
       const [cs, rs] = key.split(',').map(Number)
       const o = cellOrigin(cs, rs)
-      ctx.drawImage(assets.ui.shallow, o.x, o.y, TW, TH)
+      ctx.drawImage(assets.ui.shallow, o.x, o.y, TILE, TILE)
     }
 
     // Cone pickups on board
@@ -156,10 +146,10 @@ export class Renderer {
       ctx.restore()
     }
 
-    // Boats sorted back-to-front (low c+r first)
+    // Boats: back-to-front by row then col
     const boats = [...board.boats.values()].sort((a, b) => {
-      const sa = Math.min(...a.cells.map((c) => c.c + c.r))
-      const sb = Math.min(...b.cells.map((c) => c.c + c.r))
+      const sa = Math.min(...a.cells.map((c) => c.r * 100 + c.c))
+      const sb = Math.min(...b.cells.map((c) => c.r * 100 + c.c))
       return sa - sb
     })
 
@@ -178,7 +168,7 @@ export class Renderer {
       }
 
       if (boat.hidden) {
-        // Fog: larger/more opaque overlay + light mist + big white ?
+        // Fog: overlay + light mist + big white ? on ortho cell rects
         let minX = Infinity
         let minY = Infinity
         let maxX = -Infinity
@@ -187,35 +177,23 @@ export class Renderer {
           const o = cellOrigin(cell.c, cell.r)
           minX = Math.min(minX, o.x)
           minY = Math.min(minY, o.y)
-          maxX = Math.max(maxX, o.x + TW)
-          maxY = Math.max(maxY, o.y + TH)
+          maxX = Math.max(maxX, o.x + TILE)
+          maxY = Math.max(maxY, o.y + TILE)
 
-          // Light mist tint (glance-readable on iPhone)
           ctx.fillStyle = 'rgba(190, 210, 230, 0.28)'
-          ctx.beginPath()
-          const cx = o.x + TW / 2
-          const cy = o.y + TH / 2
-          ctx.moveTo(cx, o.y - 4)
-          ctx.lineTo(o.x + TW + 4, cy)
-          ctx.lineTo(cx, o.y + TH + 4)
-          ctx.lineTo(o.x - 4, cy)
-          ctx.closePath()
-          ctx.fill()
+          ctx.fillRect(o.x - 4, o.y - 4, TILE + 8, TILE + 8)
 
-          // Fog overlay scaled up + more opaque
-          const padX = TW * 0.18
-          const padY = TH * 0.22
+          const pad = TILE * 0.12
           ctx.globalAlpha = 0.92
           ctx.drawImage(
             assets.ui.fog,
-            o.x - padX,
-            o.y - padY,
-            TW + padX * 2,
-            TH + padY * 2,
+            o.x - pad,
+            o.y - pad,
+            TILE + pad * 2,
+            TILE + pad * 2,
           )
           ctx.globalAlpha = 1
         }
-        // Large white ? centered on footprint
         const fcx = (minX + maxX) / 2
         const fcy = (minY + maxY) / 2
         ctx.font = 'bold 56px system-ui, sans-serif'
@@ -242,14 +220,14 @@ export class Renderer {
       ctx.restore()
     }
 
-    // Exit slide animation
+    // Exit slide: facing right → +X (screen right); facing down → +Y (screen down)
     if (this.exitAnim) {
       const { boat, free, t0, dur } = this.exitAnim
       const t = Math.min(1, (now - t0) / dur)
       const img = assets.boats[boatKey(boat.type, free, boat.facing)]
       if (img) {
         const rect = boatBlitRect(boat, img)
-        const dist = boat.facing === 'right' ? 420 : 360
+        const dist = boat.facing === 'right' ? 480 : 420
         const dx = boat.facing === 'right' ? dist * t : 0
         const dy = boat.facing === 'down' ? dist * t : 0
         ctx.save()
@@ -280,7 +258,7 @@ export class Renderer {
       ctx.drawImage(next, nx, ny)
     }
 
-    // Level label — below baked PATH OUT banner, dark pill (never overlaps title)
+    // Level label
     {
       ctx.font = 'bold 34px system-ui, sans-serif'
       ctx.textAlign = 'center'
@@ -298,7 +276,7 @@ export class Renderer {
       ctx.fillText(label, px, py)
     }
 
-    // Soft-jam banner — further below title / level label
+    // Soft-jam banner
     if (opts.softJam && !opts.showNext) {
       ctx.font = '28px system-ui, sans-serif'
       ctx.textAlign = 'center'
