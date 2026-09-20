@@ -22,7 +22,7 @@
 Orientation:
 - `down` = sheet Down cut
 - `right` = sheet Down rotated **90° CCW** (bow → screen-right)
-- jam = desat + lock_x overlay
+- jam = desaturated jam sprite art; no lock or marker overlay
 
 ## Level 1 (`mock_with_boats.png`)
 | Boat | State | Facing | Col | Row | Pixel | Size |
