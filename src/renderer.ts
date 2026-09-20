@@ -205,11 +205,6 @@ export class Renderer {
         ctx.fillText('?', fcx, fcy)
       } else {
         ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h)
-        if (!free) {
-          const lx = rect.x + rect.w / 2 - assets.ui.lockX.width / 2
-          const ly = rect.y + rect.h / 2 - assets.ui.lockX.height / 2
-          ctx.drawImage(assets.ui.lockX, lx, ly)
-        }
         if (boat.pilotLinkId >= 0) {
           const badge = assets.ui.pilot
           const bx = rect.x + rect.w - badge.width * 0.55

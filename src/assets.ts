@@ -13,7 +13,6 @@ export interface GameAssets {
   ui: {
     undo: HTMLImageElement
     next: HTMLImageElement
-    lockX: HTMLImageElement
     fog: HTMLImageElement
     shallow: HTMLImageElement
     pilot: HTMLImageElement
@@ -55,7 +54,6 @@ export async function loadAssets(): Promise<GameAssets> {
     board,
     undo,
     next,
-    lockX,
     fog,
     shallow,
     pilot,
@@ -67,7 +65,6 @@ export async function loadAssets(): Promise<GameAssets> {
     loadImage(url('assets/board_fullscreen_1080x1920.png')),
     loadImage(url('assets/ui/undo.png')),
     loadImage(url('assets/ui/next.png')),
-    loadImage(url('assets/ui/lock_x.png')),
     loadImage(url('assets/ui/fog_overlay.png')),
     loadImage(url('assets/ui/shallow_hatch.png')),
     loadImage(url('assets/ui/pilot_badge.png')),
@@ -85,6 +82,6 @@ export async function loadAssets(): Promise<GameAssets> {
   return {
     board,
     boats,
-    ui: { undo, next, lockX, fog, shallow, pilot, cone, exitRight, exitDown },
+    ui: { undo, next, fog, shallow, pilot, cone, exitRight, exitDown },
   }
 }
