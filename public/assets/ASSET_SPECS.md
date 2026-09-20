@@ -1,29 +1,28 @@
-# Path Out Harbor — TOP-DOWN art lock
+# Path Out Harbor — Port 2D art lock
 
-**Perspective:** TRUE TOP-DOWN ortho — NOT isometric.  
-**Screen:** 1080×1920  
-**Exits:** Right = +X (screen right). Down = +Y (screen down).
+**Source:** Christoffer Port 2D sheet (`port2d_sheet.png`) — ships chroma-keyed to true RGBA.  
+**Perspective:** TRUE TOP-DOWN ortho. Exits Right=+X, Down=+Y.
 
-## Ortho grid
+## Ortho grid (unchanged from topdown)
 | Constant | Value |
 |---|---|
 | TILE | **128** |
 | GRID_X | **188** |
 | GRID_Y | **460** |
 | Cell (c,r) | `(GRID_X + c*TILE, GRID_Y + r*TILE)` |
-| Dock top Y | 332 |
-| Dock left X | 60 |
-| Frame | (24,296)–(992,1264) |
 
-## Boats
-| ID | H×W | RIGHT px | DOWN px |
-|---|---|---|---|
-| A_skiff | 1×2 | 256×128 | 128×256 |
-| B_cabin | 1×3 | 384×128 | 128×384 |
-| C_ferry | 2×3 | 384×256 | 256×384 |
-| D_tug | 2×4 | 512×256 | 256×512 |
+## Boat map (sheet component IDs)
+| ID | Sheet pair (Up, Down) | Visual | H×W | RIGHT px | DOWN px |
+|---|---|---|---|---|---|
+| A_skiff | 28/29 | rowboat | 1×2 | 256×128 | 128×256 |
+| B_cabin | 26/27 | passenger/cabin | 1×3 | 384×128 | 128×384 |
+| C_ferry | 18/19 | ferry | 2×3 | 384×256 | 256×384 |
+| D_tug | 14/15 | medium cargo (2×4 fit) | 2×4 | 512×256 | 256×512 |
 
-`right` bow = +X. `down` = 90° CW from right (bow = +Y).
+Orientation:
+- `down` = sheet Down cut
+- `right` = sheet Down rotated **90° CCW** (bow → screen-right)
+- jam = desat + lock_x overlay
 
 ## Level 1 (`mock_with_boats.png`)
 | Boat | State | Facing | Col | Row | Pixel | Size |
@@ -33,7 +32,11 @@
 | C_ferry | jam | right | 0 | 3 | (188,844) | 384×256 |
 | D_tug | free | right | 2 | 4 | (444,972) | 512×256 |
 
+## Level 1 path-clear lock
+A occupies cols 4–5 and is free; B occupies cols 1–3 and is jammed behind A. Keep this runtime layout; do not use the source-sheet mock coordinates above.
+
+## Board extras from Port pack
+Pier cuts, lighthouse, buoys, bollard composited onto ortho board.
+
 ## Undo
 (56, 1680, 196, 1820)
-
-Also see `mock_axis_proof.png` — same boat facing right vs down on ortho grid.
