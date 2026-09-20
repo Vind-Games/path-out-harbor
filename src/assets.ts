@@ -1,9 +1,10 @@
 import type { BoatType, Facing } from './types'
 
 const BASE = import.meta.env.BASE_URL
+const ASSET_VERSION = 'port2d-20260920'
 
 function url(path: string) {
-  return `${BASE}${path.replace(/^\//, '')}`
+  return `${BASE}${path.replace(/^\//, '')}?v=${ASSET_VERSION}`
 }
 
 export interface GameAssets {
